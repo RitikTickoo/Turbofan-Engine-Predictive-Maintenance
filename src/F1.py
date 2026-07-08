@@ -236,11 +236,12 @@ sequence_length = 30
 def create_sequence(data_copy, feature_columns, target_column, sequence_length):
      x=[]
      y=[]
+     unit_numbers=[]
 
 # SORT THE CYCLES OF EACH ENGINE SEPARATELY 
 # ALLOWS LSTM TO LEARN THE PATTERN OF ENGINE DEGRADATION
-     for i in data_copy['unit_number'].unique():
-          engine_data=data_copy[data_copy['unit_number']==i].sort_values('cycles')
+     for unit_number in data_copy['unit_number'].unique():
+          engine_data=data_copy[data_copy['unit_number']==unit_number].sort_values('cycles')
 
 # SEPARATE INDEPENDENT FEATURES AND DEPENDENT TARGET VARIABLE(RUL)
           features=engine_data[feature_columns].values
@@ -250,15 +251,28 @@ def create_sequence(data_copy, feature_columns, target_column, sequence_length):
           for i in range(sequence_length,len(engine_data)):
                x.append(features[i-sequence_length:i])
                y.append(Target[i])
-          
+               unit_numbers.append(unit_number)
+
 # RETURN THE INPUT SEQUENCE AS 3D ARRAY FOR LSTM 
-# AND TARGET VALUES AS 1D NUMPY ARRAY
-     return np.array(x),np.array(y)
+# TARGET VALUES AS 1D NUMPY ARRAY
+# AND UNIT NUMBERS FOR EACH SEQUENCE
+     return np.array(x),np.array(y),np.array(unit_numbers)
+
 
 # lstm train and test sequences 
-x_train_lstm,y_train_lstm=create_sequence(train_data, feature_columns, target_column, sequence_length)
+x_train_lstm,y_train_lstm,train_unit_numbers=create_sequence(
+     train_data,
+     feature_columns,
+     target_column,
+     sequence_length
+)
 
-x_test_lstm,y_test_lstm=create_sequence(test_data, feature_columns, target_column, sequence_length)
+x_test_lstm,y_test_lstm,test_unit_numbers=create_sequence(
+     test_data,
+     feature_columns,
+     target_column,
+     sequence_length
+)
 
 
 print('shape of x_train_lstm',x_train_lstm.shape)
@@ -529,10 +543,11 @@ def maintenance_range(predicted_rul):
 decision=[]
 
 # temporarily storing the values using for loop
-for actual_rul,predicted_rul in zip(y_test_lstm, y_pred_bilstm):
+for unit_number,actual_rul,predicted_rul in zip(test_unit_numbers,y_test_lstm, y_pred_bilstm):
      status,risk,maintenance=maintenance_range(predicted_rul)
 # values permanently stored in empty list
      decision.append([
+          unit_number,
           actual_rul,
           predicted_rul,
           status,
@@ -543,7 +558,7 @@ for actual_rul,predicted_rul in zip(y_test_lstm, y_pred_bilstm):
 # coverting the list into tabular format using pandas dataframe
 decision_df=pd.DataFrame(
      decision,
-     columns=[
+     columns=["unit_number",
           'actual_rul',
           'predicted_rul',
           'status',
