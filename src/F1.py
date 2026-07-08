@@ -4,6 +4,11 @@
 import numpy as np
 from numpy import isin
 import pandas as pd
+
+import os
+import random
+import tensorflow as tf
+
 # for visualising the patterns in the dataset
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -19,6 +24,15 @@ from sklearn.ensemble import RandomForestRegressor
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Dropout,Input
 from tensorflow.keras.layers import Bidirectional
+from tensorflow.keras.callbacks import EarlyStopping
+
+
+SEED = 2002
+
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
 
 # naming of the columns for easy reference
 columns=['unit_number','cycles','operational_setting_1','operational_setting_2','operational_setting_3']+ \
@@ -96,6 +110,9 @@ plt.show()
 max_cycles.columns=['unit_number','max_cycles']
 data=data.merge(max_cycles, on='unit_number')
 data['RUL']=data['max_cycles']-data['cycles']
+# CAP HIGH RUL VALUES AT 125
+RUL_CAP = 125
+data['RUL'] = data['RUL'].clip(upper=RUL_CAP)
 print(data[["unit_number",'max_cycles','RUL']].head(10))
 print('---------')
 
@@ -281,22 +298,36 @@ model_3.compile(
      metrics=['mae']
 )
 
-history=model_3.fit(
+early_stopping_lstm = EarlyStopping(
+    monitor='val_loss',
+    patience=5,
+    restore_best_weights=True
+)
+history = model_3.fit(
 # TRAINING INPUT SEQUENCES.
      x_train_lstm,
+
 # ACTUAL RUL VALUES FOR TRAINING THE MODEL
      y_train_lstm,
 
-# THE MODEL WILL GO THROUGH THE TRAINING DATA 20 TIMES.
-     epochs=20,
+# THE MODEL CAN GO THROUGH THE TRAINING DATA UP TO 50 TIMES.
+# EARLY STOPPING MAY STOP TRAINING BEFORE 50 EPOCHS
+# IF THE VALIDATION LOSS DOES NOT IMPROVE.
+     epochs=50,
+
 # THE MODEL UPDATES WEIGHTS AFTER PROCESSING 32 SAMPLES AT A TIME.
      batch_size=32,
+
 # 20% OF THE TRAINING DATA IS USED FOR VALIDATION DURING TRAINING.
      validation_split=0.2,
+
 # SHUFFLE IS FALSE BECAUSE LSTM USES SEQUENCE/TIME-BASED DATA.
 # KEEPING THE ORDER HELPS PRESERVE THE SEQUENCE STRUCTURE.
-     shuffle=False
+     shuffle=False,
 
+# STOPS TRAINING IF VALIDATION LOSS DOES NOT IMPROVE
+# AND RESTORES THE BEST MODEL WEIGHTS.
+     callbacks=[early_stopping_lstm]
 )
 
 # TESTING THE MODEL ON UNSEEN DATA
@@ -362,6 +393,12 @@ model_stacked_lstm.compile(
      metrics=['mae']
 )
 
+early_stopping_stacked = EarlyStopping(
+     monitor='val_loss',
+     patience=5,
+     restore_best_weights=True
+)
+
 history_stacked_lstm = model_stacked_lstm.fit(
 
 # TRAINING INPUT SEQUENCES.
@@ -370,8 +407,10 @@ history_stacked_lstm = model_stacked_lstm.fit(
 # ACTUAL RUL VALUES FOR TRAINING THE MODEL.
      y_train_lstm,
 
-# THE MODEL WILL GO THROUGH THE TRAINING DATA 20 TIMES.
-     epochs=20,
+# THE MODEL CAN GO THROUGH THE TRAINING DATA UP TO 50 TIMES.
+# EARLY STOPPING MAY STOP TRAINING BEFORE 50 EPOCHS
+# IF THE VALIDATION LOSS DOES NOT IMPROVE.
+     epochs=50,
 
 # THE MODEL UPDATES WEIGHTS AFTER PROCESSING 32 SAMPLES AT A TIME.
      batch_size=32,
@@ -381,7 +420,11 @@ history_stacked_lstm = model_stacked_lstm.fit(
 
 # SHUFFLE IS FALSE BECAUSE LSTM USES SEQUENCE/TIME-BASED DATA.
 # KEEPING THE ORDER HELPS PRESERVE THE SEQUENCE STRUCTURE.
-     shuffle=False
+     shuffle=False,
+
+# STOPS TRAINING IF VALIDATION LOSS DOES NOT IMPROVE
+# AND RESTORES THE BEST MODEL WEIGHTS.
+     callbacks=[early_stopping_stacked]
 )
 
 
@@ -423,13 +466,38 @@ model_bilstm.compile(
      metrics=['mae']
 )
 
+early_stopping_bilstm = EarlyStopping(
+     monitor='val_loss',
+     patience=5,
+     restore_best_weights=True
+)
+
 history_bilstm = model_bilstm.fit(
+
+# TRAINING INPUT SEQUENCES.
      x_train_lstm,
+
+# ACTUAL RUL VALUES FOR TRAINING THE MODEL.
      y_train_lstm,
-     epochs=20,
+
+# THE MODEL CAN GO THROUGH THE TRAINING DATA UP TO 50 TIMES.
+# EARLY STOPPING MAY STOP TRAINING BEFORE 50 EPOCHS
+# IF THE VALIDATION LOSS DOES NOT IMPROVE.
+     epochs=50,
+
+# THE MODEL UPDATES WEIGHTS AFTER PROCESSING 32 SAMPLES AT A TIME.
      batch_size=32,
+
+# 20% OF THE TRAINING DATA IS USED FOR VALIDATION DURING TRAINING.
      validation_split=0.2,
-     shuffle=False
+
+# SHUFFLE IS FALSE BECAUSE LSTM USES SEQUENCE/TIME-BASED DATA.
+# KEEPING THE ORDER HELPS PRESERVE THE SEQUENCE STRUCTURE.
+     shuffle=False,
+
+# STOPS TRAINING IF VALIDATION LOSS DOES NOT IMPROVE
+# AND RESTORES THE BEST MODEL WEIGHTS.
+     callbacks=[early_stopping_bilstm]
 )
 
 # prediction
